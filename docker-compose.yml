@@ -1,25 +1,30 @@
 version: '3'
 services:
-  # The Backend: Real Ubuntu System
-  backend:
+  # Service 1: The Real Linux Terminal Backend
+  linux-backend:
     build: .
-    container_name: pro-terminal-backend
+    container_name: production_terminal
+    restart: always
+    privileged: true  # Required for some system level operations
     ports:
       - "7681:7681"
-    restart: always
-    privileged: true
-    tty: true
-    # -t: writable, -b /: base path, -c: optional auth (currently disabled)
-    command: ttyd -W -b / bash
+    volumes:
+      # Mount the Docker Socket so 'docker' commands work inside the terminal
+      - /var/run/docker.sock:/var/run/docker.sock
+      # Optional: Persist the root directory so you don't lose files on restart
+      - terminal_data:/root
 
-  # The Frontend: Professional UI
-  frontend:
-    image: nginx:alpine
-    container_name: pro-terminal-ui
+  # Service 2: The Flask Web Application (UI)
+  web-ui:
+    build: ./app
+    container_name: terminal_dashboard
     restart: always
     ports:
-      - "80:80"
-    volumes:
-      - ./index.html:/usr/share/nginx/html/index.html:ro
+      - "80:5000"
     depends_on:
-      - backend
+      - linux-backend
+    environment:
+      - FLASK_ENV=production
+
+volumes:
+  terminal_data:
