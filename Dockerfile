@@ -26,9 +26,11 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # 2. Install Python 3, Pip, and "All" Common Packages
+# FIXED: Changed 'fastpi' to 'fastapi'
+# ADDED: --break-system-packages to prevent errors on newer Ubuntu builds
 RUN apt-get update && apt-get install -y python3 python3-pip python3-venv python3-dev \
-    && pip3 install --no-cache-dir \
-    numpy pandas requests flask django fastpi uvicorn scipy matplotlib beautifulsoup4
+    && pip3 install --no-cache-dir --break-system-packages \
+    numpy pandas requests flask django fastapi uvicorn scipy matplotlib beautifulsoup4
 
 # 3. Install Java (OpenJDK 17)
 RUN apt-get update && apt-get install -y openjdk-17-jdk
@@ -39,7 +41,6 @@ RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
 
 # 5. Install Docker CLI
 # We install the CLI so you can type 'docker ps' inside the terminal.
-# The actual daemon will be mounted from the host via docker-compose.
 RUN curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg \
     && echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null \
     && apt-get update && apt-get install -y docker-ce-cli
