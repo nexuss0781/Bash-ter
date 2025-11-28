@@ -25,11 +25,13 @@ RUN apt-get update && apt-get install -y \
     lsb-release \
     && rm -rf /var/lib/apt/lists/*
 
-# 2. Install Python 3, Pip, and "All" Common Packages
-# FIXED: Changed 'fastpi' to 'fastapi'
-# ADDED: --break-system-packages to prevent errors on newer Ubuntu builds
-RUN apt-get update && apt-get install -y python3 python3-pip python3-venv python3-dev \
-    && pip3 install --no-cache-dir --break-system-packages \
+# 2. Install Python 3, Pip, and Science Dependencies
+# CHANGED: Added 'gfortran libopenblas-dev' so scipy/numpy compile correctly.
+# REMOVED: '--break-system-packages' (not needed/supported on Ubuntu 22.04)
+RUN apt-get update && apt-get install -y \
+    python3 python3-pip python3-venv python3-dev \
+    gfortran libopenblas-dev liblapack-dev pkg-config \
+    && pip3 install --no-cache-dir \
     numpy pandas requests flask django fastapi uvicorn scipy matplotlib beautifulsoup4
 
 # 3. Install Java (OpenJDK 17)
