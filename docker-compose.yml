@@ -1,12 +1,25 @@
 version: '3'
 services:
-  linux-terminal:
+  # The Backend: Real Ubuntu System
+  backend:
     build: .
-    container_name: full-linux-term
+    container_name: pro-terminal-backend
     ports:
       - "7681:7681"
     restart: always
-    # Gives the container higher privileges if you need to modify network adapters, etc.
-    # remove 'privileged: true' if you want a sandboxed feel.
-    privileged: true 
+    privileged: true
     tty: true
+    # -t: writable, -b /: base path, -c: optional auth (currently disabled)
+    command: ttyd -W -b / bash
+
+  # The Frontend: Professional UI
+  frontend:
+    image: nginx:alpine
+    container_name: pro-terminal-ui
+    restart: always
+    ports:
+      - "80:80"
+    volumes:
+      - ./index.html:/usr/share/nginx/html/index.html:ro
+    depends_on:
+      - backend
