@@ -1,0 +1,12 @@
+version: '3'
+services:
+  linux-terminal:
+    build: .
+    container_name: full-linux-term
+    ports:
+      - "7681:7681"
+    restart: always
+    # Gives the container higher privileges if you need to modify network adapters, etc.
+    # remove 'privileged: true' if you want a sandboxed feel.
+    privileged: true 
+    tty: true
