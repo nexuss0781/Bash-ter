@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TERMINAL // PRO ENV</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&family=JetBrains+Mono:wght@400;700&display=swap');
+
+        :root {
+            --bg-dark: #09090b;
+            --bg-panel: #18181b;
+            --border: #27272a;
+            --primary: #3b82f6;
+            --primary-dim: rgba(59, 130, 246, 0.1);
+            --text-main: #e4e4e7;
+            --text-muted: #a1a1aa;
+            --success: #22c55e;
+            --danger: #ef4444;
+            --sidebar-width: 64px;
+        }
+
+        * { box-sizing: border-box; outline: none; }
+
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: var(--bg-dark);
+            color: var(--text-main);
+            font-family: 'Inter', sans-serif;
+            height: 100vh;
+            display: flex;
+            overflow: hidden;
+        }
+
+        /* SIDEBAR */
+        aside {
+            width: var(--sidebar-width);
+            background-color: var(--bg-panel);
+            border-right: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding-top: 20px;
+            z-index: 20;
+        }
+
+        .logo {
+            width: 32px;
+            height: 32px;
+            background: var(--primary);
+            border-radius: 8px;
+            margin-bottom: 40px;
+            display: grid;
+            place-items: center;
+            font-family: 'JetBrains Mono', monospace;
+            font-weight: bold;
+            color: white;
+            box-shadow: 0 0 15px var(--primary-dim);
+        }
+
+        .nav-item {
+            width: 40px;
+            height: 40px;
+            border-radius: 8px;
+            display: grid;
+            place-items: center;
+            margin-bottom: 12px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            color: var(--text-muted);
+        }
+
+        .nav-item:hover {
+            background-color: rgba(255,255,255,0.05);
+            color: var(--text-main);
+        }
+
+        .nav-item.active {
+            background-color: var(--primary-dim);
+            color: var(--primary);
+            border-left: 2px solid var(--primary);
+        }
+
+        .nav-bottom { margin-top: auto; margin-bottom: 20px; }
+
+        /* MAIN CONTENT */
+        main {
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+        }
+
+        header {
+            height: 50px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 20px;
+            background-color: var(--bg-dark);
+        }
+
+        .breadcrumb {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .status-badge {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 0.75rem;
+            background: rgba(34, 197, 94, 0.1);
+            color: var(--success);
+            padding: 4px 10px;
+            border-radius: 12px;
+            border: 1px solid rgba(34, 197, 94, 0.2);
+        }
+
+        .status-dot {
+            width: 6px;
+            height: 6px;
+            background-color: var(--success);
+            border-radius: 50%;
+            box-shadow: 0 0 8px var(--success);
+        }
+
+        .status-badge.offline {
+            background: rgba(239, 68, 68, 0.1);
+            color: var(--danger);
+            border-color: rgba(239, 68, 68, 0.2);
+        }
+        .status-badge.offline .status-dot { background-color: var(--danger); box-shadow: none; }
+
+        /* TERMINAL FRAME */
+        .viewport {
+            flex-grow: 1;
+            position: relative;
+            background-color: #000;
+        }
+
+        iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
+            display: block;
+        }
+
+        /* OVERLAY LOADER */
+        #loader {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: var(--bg-dark);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 10;
+            transition: opacity 0.5s ease;
+        }
+
+        .loader-text {
+            font-family: 'JetBrains Mono', monospace;
+            color: var(--primary);
+            margin-top: 15px;
+            font-size: 0.9rem;
+        }
+
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid var(--border);
+            border-top-color: var(--primary);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* SVG ICONS */
+        svg { width: 20px; height: 20px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+    </style>
+</head>
+<body>
+
+    <aside>
+        <div class="logo">T</div>
+        
+        <div class="nav-item active" title="Terminal View">
+            <svg viewBox="0 0 24 24"><polyline points="4 17 10 11 4 5"></polyline><line x1="12" y1="19" x2="20" y2="19"></line></svg>
+        </div>
+        
+        <div class="nav-item" onclick="reloadTerm()" title="Restart Session">
+            <svg viewBox="0 0 24 24"><path d="M23 4v6h-6"></path><path d="M1 20v-6h6"></path><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 1 20.49 15"></path></svg>
+        </div>
+
+        <div class="nav-item" onclick="toggleFull()" title="Fullscreen">
+            <svg viewBox="0 0 24 24"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"></path></svg>
+        </div>
+
+        <div class="nav-bottom nav-item" title="Settings (Disabled)">
+            <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+        </div>
+    </aside>
+
+    <main>
+        <header>
+            <div class="breadcrumb">
+                <span>root</span>
+                <span style="color:var(--border)">/</span>
+                <span>production</span>
+                <span style="color:var(--border)">/</span>
+                <span style="color:var(--text-main)">bash</span>
+            </div>
+            <div id="status-badge" class="status-badge">
+                <div class="status-dot"></div>
+                <span id="status-text">CONNECTED</span>
+            </div>
+        </header>
+
+        <div class="viewport">
+            <div id="loader">
+                <div class="spinner"></div>
+                <div class="loader-text">ESTABLISHING UPLINK...</div>
+            </div>
+            <iframe id="term-frame" src="about:blank"></iframe>
+        </div>
+    </main>
+
+    <script>
+        const frame = document.getElementById('term-frame');
+        const loader = document.getElementById('loader');
+        const statusBadge = document.getElementById('status-badge');
+        const statusText = document.getElementById('status-text');
+
+        // Dynamically calculate the backend URL based on current host
+        // Assumes backend is on Port 7681 of the same IP
+        const protocol = window.location.protocol === 'https:' ? 'https:' : 'http:';
+        const host = window.location.hostname;
+        const port = '7681'; 
+        const backendUrl = `${protocol}//${host}:${port}`;
+
+        function connect() {
+            console.log(`Initializing connection to ${backendUrl}`);
+            frame.src = backendUrl;
+            
+            // Artificial delay to show the "Booting" animation, creates a pro feel
+            frame.onload = () => {
+                setTimeout(() => {
+                    loader.style.opacity = '0';
+                    setTimeout(() => loader.style.display = 'none', 500);
+                    setStatus(true);
+                }, 800);
+            };
+
+            frame.onerror = () => {
+                setStatus(false);
+            };
+        }
+
+        function reloadTerm() {
+            loader.style.display = 'flex';
+            setTimeout(() => loader.style.opacity = '1', 10);
+            frame.src = 'about:blank';
+            setStatus(false);
+            setTimeout(connect, 500);
+        }
+
+        function toggleFull() {
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen();
+            } else {
+                if (document.exitFullscreen) document.exitFullscreen();
+            }
+        }
+
+        function setStatus(isOnline) {
+            if(isOnline) {
+                statusBadge.classList.remove('offline');
+                statusText.innerText = "CONNECTED";
+            } else {
+                statusBadge.classList.add('offline');
+                statusText.innerText = "DISCONNECTED";
+            }
+        }
+
+        // Init
+        window.addEventListener('DOMContentLoaded', connect);
+
+    </script>
+</body>
+</html>
