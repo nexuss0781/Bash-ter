@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>TERMINAL // PRO ENV</title>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&family=JetBrains+Mono:wght@400;700&display=swap');
@@ -18,9 +18,11 @@
             --success: #22c55e;
             --danger: #ef4444;
             --sidebar-width: 64px;
+            --key-bg: #27272a;
+            --key-active: #3f3f46;
         }
 
-        * { box-sizing: border-box; outline: none; }
+        * { box-sizing: border-box; outline: none; -webkit-tap-highlight-color: transparent; }
 
         body {
             margin: 0; padding: 0;
@@ -32,13 +34,17 @@
             overflow: hidden;
         }
 
-        /* SIDEBAR */
+        /* SIDEBAR (Hidden on mobile for more space) */
         aside {
             width: var(--sidebar-width);
             background-color: var(--bg-panel);
             border-right: 1px solid var(--border);
             display: flex; flex-direction: column; align-items: center;
             padding-top: 20px; z-index: 20;
+        }
+
+        @media (max-width: 768px) {
+            aside { display: none; }
         }
 
         .logo {
@@ -59,12 +65,8 @@
             transition: all 0.2s ease;
             color: var(--text-muted);
         }
-
         .nav-item:hover { background-color: rgba(255,255,255,0.05); color: var(--text-main); }
-        .nav-item.active { background-color: var(--primary-dim); color: var(--primary); border-left: 2px solid var(--primary); }
-
         .nav-bottom { margin-top: auto; margin-bottom: 20px; }
-        
         a { color: inherit; text-decoration: none; display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; }
 
         /* MAIN CONTENT */
@@ -93,153 +95,243 @@
             padding: 4px 10px;
             border-radius: 12px;
             border: 1px solid rgba(34, 197, 94, 0.2);
-            transition: all 0.3s;
         }
+        .status-dot { width: 6px; height: 6px; background-color: var(--success); border-radius: 50%; }
 
-        .status-dot {
-            width: 6px; height: 6px;
-            background-color: var(--success);
-            border-radius: 50%;
-            box-shadow: 0 0 8px var(--success);
-        }
-
-        .status-badge.offline {
-            background: rgba(239, 68, 68, 0.1);
-            color: var(--danger);
-            border-color: rgba(239, 68, 68, 0.2);
-        }
-        .status-badge.offline .status-dot { background-color: var(--danger); box-shadow: none; }
-
-        /* VIEWPORT & IFRAME */
-        .viewport { flex-grow: 1; position: relative; background-color: #000; }
+        /* TERMINAL VIEWPORT */
+        .viewport { flex-grow: 1; position: relative; background-color: #000; overflow: hidden; }
         iframe { width: 100%; height: 100%; border: none; display: block; }
 
-        /* LOADER OVERLAY */
+        /* ============================ */
+        /* TERMUX CONTROL BAR STYLES    */
+        /* ============================ */
+        #virtual-keys {
+            height: auto;
+            background-color: var(--bg-panel);
+            border-top: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            padding: 8px 4px;
+            gap: 6px;
+            z-index: 100;
+        }
+
+        .key-row {
+            display: flex;
+            justify-content: center;
+            gap: 6px;
+            overflow-x: auto;
+            padding-bottom: 2px;
+        }
+
+        .v-key {
+            background-color: var(--key-bg);
+            color: var(--text-main);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            min-width: 45px;
+            height: 38px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.85rem;
+            font-weight: 600;
+            cursor: pointer;
+            user-select: none;
+            transition: background 0.1s;
+            box-shadow: 0 2px 0 rgba(0,0,0,0.3);
+            flex-shrink: 0;
+        }
+
+        .v-key:active, .v-key.pressed {
+            background-color: var(--key-active);
+            transform: translateY(2px);
+            box-shadow: none;
+            border-color: var(--primary);
+            color: var(--primary);
+        }
+
+        .v-key.ctrl-active {
+            background-color: var(--primary);
+            color: white;
+            border-color: var(--primary);
+        }
+
+        /* Loader */
         #loader {
             position: absolute; top: 0; left: 0; right: 0; bottom: 0;
             background: var(--bg-dark);
             display: flex; flex-direction: column; justify-content: center; align-items: center;
             z-index: 10; transition: opacity 0.5s ease;
         }
-        .loader-text { font-family: 'JetBrains Mono', monospace; color: var(--primary); margin-top: 15px; font-size: 0.9rem; }
         .spinner {
             width: 40px; height: 40px;
-            border: 3px solid var(--border);
-            border-top-color: var(--primary);
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
+            border: 3px solid var(--border); border-top-color: var(--primary);
+            border-radius: 50%; animation: spin 1s linear infinite;
         }
         @keyframes spin { to { transform: rotate(360deg); } }
-
-        /* SVG ICONS */
-        svg { width: 20px; height: 20px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
-
+        svg { width: 20px; height: 20px; stroke: currentColor; fill: none; stroke-width: 2; }
     </style>
 </head>
 <body>
 
     <aside>
         <div class="logo">T</div>
-        
-        <div class="nav-item active" title="Terminal View">
-            <svg viewBox="0 0 24 24"><polyline points="4 17 10 11 4 5"></polyline><line x1="12" y1="19" x2="20" y2="19"></line></svg>
-        </div>
-        
-        <div class="nav-item" onclick="reloadTerm()" title="Restart Session">
-            <svg viewBox="0 0 24 24"><path d="M23 4v6h-6"></path><path d="M1 20v-6h6"></path><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 1 20.49 15"></path></svg>
-        </div>
-
-        <div class="nav-item" onclick="toggleFull()" title="Fullscreen">
-            <svg viewBox="0 0 24 24"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"></path></svg>
-        </div>
-
-        <div class="nav-bottom nav-item" title="Logout">
-            <a href="/logout"><svg viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg></a>
-        </div>
+        <div class="nav-item active" title="Terminal"><svg viewBox="0 0 24 24"><polyline points="4 17 10 11 4 5"></polyline><line x1="12" y1="19" x2="20" y2="19"></line></svg></div>
+        <div class="nav-item" onclick="reloadTerm()" title="Reload"><svg viewBox="0 0 24 24"><path d="M23 4v6h-6"></path><path d="M1 20v-6h6"></path><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 1 20.49 15"></path></svg></div>
+        <div class="nav-bottom nav-item" title="Logout"><a href="/logout"><svg viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg></a></div>
     </aside>
 
     <main>
         <header>
             <div class="breadcrumb">
-                <span>root</span>
-                <span style="color:var(--border)">/</span>
-                <span>production</span>
-                <span style="color:var(--border)">/</span>
-                <span style="color:var(--text-main)">bash</span>
+                <span>root</span><span style="color:var(--border)">/</span><span>bash</span>
             </div>
-            <div id="status-badge" class="status-badge">
-                <div class="status-dot"></div>
-                <span id="status-text">CONNECTED</span>
-            </div>
+            <div class="status-badge"><div class="status-dot"></div><span>ONLINE</span></div>
         </header>
 
         <div class="viewport">
-            <div id="loader">
-                <div class="spinner"></div>
-                <div class="loader-text">ESTABLISHING UPLINK...</div>
-            </div>
-            <!-- Backend URL injected from Flask -->
+            <div id="loader"><div class="spinner"></div></div>
             <iframe id="term-frame" src="about:blank"></iframe>
+        </div>
+
+        <!-- TERMUX-STYLE VIRTUAL KEYBOARD -->
+        <div id="virtual-keys">
+            <!-- Row 1 -->
+            <div class="key-row">
+                <div class="v-key" data-key="ESC">ESC</div>
+                <div class="v-key" data-key="/">/</div>
+                <div class="v-key" data-key="-">-</div>
+                <div class="v-key" data-key="HOME">HOME</div>
+                <div class="v-key" data-key="UP">▲</div>
+                <div class="v-key" data-key="END">END</div>
+                <div class="v-key" data-key="PGUP">PGUP</div>
+            </div>
+            <!-- Row 2 -->
+            <div class="key-row">
+                <div class="v-key" data-key="TAB">TAB</div>
+                <div class="v-key" id="btn-ctrl" data-key="CTRL">CTRL</div>
+                <div class="v-key" data-key="ALT">ALT</div>
+                <div class="v-key" data-key="LEFT">◀</div>
+                <div class="v-key" data-key="DOWN">▼</div>
+                <div class="v-key" data-key="RIGHT">▶</div>
+                <div class="v-key" data-key="PGDN">PGDN</div>
+            </div>
         </div>
     </main>
 
     <script>
         const frame = document.getElementById('term-frame');
         const loader = document.getElementById('loader');
-        const statusBadge = document.getElementById('status-badge');
-        const statusText = document.getElementById('status-text');
-
-        // This variable is populated by Flask via render_template
         const targetUrl = "{{ backend_url }}";
 
+        // === CONNECTION LOGIC ===
         function connect() {
-            console.log(`Connecting to backend: ${targetUrl}`);
             frame.src = targetUrl;
-            
-            // Artificial delay to make it look "techy" and professional
-            // In a real WebSocket scenario, TTYD handles the connection logic instantly
             frame.onload = () => {
                 setTimeout(() => {
                     loader.style.opacity = '0';
                     setTimeout(() => loader.style.display = 'none', 500);
-                    setStatus(true);
+                    // Attempt to focus iframe so typing works immediately
+                    frame.contentWindow.focus();
                 }, 800);
-            };
-
-            frame.onerror = () => {
-                setStatus(false);
             };
         }
 
         function reloadTerm() {
-            loader.style.display = 'flex';
-            setTimeout(() => loader.style.opacity = '1', 10);
+            loader.style.display = 'flex'; loader.style.opacity = '1';
             frame.src = 'about:blank';
-            setStatus(false);
             setTimeout(connect, 500);
         }
 
-        function toggleFull() {
-            if (!document.fullscreenElement) {
-                document.documentElement.requestFullscreen();
-            } else {
-                if (document.exitFullscreen) document.exitFullscreen();
+        // === KEYBOARD LOGIC ===
+        let isCtrl = false;
+        const ctrlBtn = document.getElementById('btn-ctrl');
+
+        // Map button labels to ANSI escape codes or logic
+        const keyMap = {
+            'ESC': '\x1b',
+            'UP': '\x1b[A',
+            'DOWN': '\x1b[B',
+            'RIGHT': '\x1b[C',
+            'LEFT': '\x1b[D',
+            'HOME': '\x1b[H',
+            'END': '\x1b[F',
+            'PGUP': '\x1b[5~',
+            'PGDN': '\x1b[6~',
+            'TAB': '\t',
+            '-': '-',
+            '/': '/'
+        };
+
+        // Handle clicks on virtual keys
+        document.querySelectorAll('.v-key').forEach(key => {
+            key.addEventListener('click', (e) => {
+                e.preventDefault();
+                const keyLabel = key.getAttribute('data-key');
+
+                // 1. Handle Modifier Toggles
+                if (keyLabel === 'CTRL') {
+                    isCtrl = !isCtrl;
+                    ctrlBtn.classList.toggle('ctrl-active', isCtrl);
+                    return;
+                }
+
+                // 2. Construct Payload
+                let payload = null;
+
+                if (isCtrl) {
+                    // Handle CTRL Combinations
+                    if (keyLabel === 'c' || keyLabel === 'C') payload = '\x03'; // CTRL+C
+                    else if (keyLabel === 'd' || keyLabel === 'D') payload = '\x04'; // CTRL+D
+                    else if (keyLabel === 'z' || keyLabel === 'Z') payload = '\x1a'; // CTRL+Z
+                    // Reset CTRL after use
+                    isCtrl = false;
+                    ctrlBtn.classList.remove('ctrl-active');
+                } else {
+                    // Handle Standard Keys
+                    payload = keyMap[keyLabel] || keyLabel;
+                }
+
+                // 3. Send to Terminal
+                // Since we are using standard TTYD which runs xterm.js, 
+                // we try to paste the characters.
+                if (payload) {
+                    copyToTerminal(payload);
+                }
+                
+                // Visual Feedback
+                key.classList.add('pressed');
+                setTimeout(() => key.classList.remove('pressed'), 150);
+            });
+        });
+
+        async function copyToTerminal(text) {
+            // Focus the iframe first
+            frame.contentWindow.focus();
+            
+            // SECURITY NOTE:
+            // Because the frontend (Port 5000) and backend (Port 7681) are on different ports,
+            // we cannot directly inject keystrokes via JS (Same-Origin Policy).
+            // 
+            // However, modern browsers support the Clipboard API.
+            // When you click a button, we write to clipboard, and you can paste (Ctrl+Shift+V) 
+            // inside the terminal, OR if you are on localhost, the focus might allow direct input.
+            
+            try {
+                // We try to use the clipboard as a bridge
+                await navigator.clipboard.writeText(text);
+                
+                // On mobile, just focusing often brings up keyboard.
+                // The user interacts with the terminal directly for typing letters,
+                // the buttons are mostly for special codes.
+            } catch (err) {
+                console.error('Clipboard access failed', err);
             }
         }
 
-        function setStatus(isOnline) {
-            if(isOnline) {
-                statusBadge.classList.remove('offline');
-                statusText.innerText = "CONNECTED";
-            } else {
-                statusBadge.classList.add('offline');
-                statusText.innerText = "DISCONNECTED";
-            }
-        }
-
-        // Initialize connection
         window.addEventListener('DOMContentLoaded', connect);
-
     </script>
 </body>
 </html>
