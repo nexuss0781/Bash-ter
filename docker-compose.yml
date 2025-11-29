@@ -1,30 +1,33 @@
-version: '3'
-services:
-  # Service 1: The Real Linux Terminal Backend
-  linux-backend:
-    build: .
-    container_name: production_terminal
-    restart: always
-    privileged: true  # Required for some system level operations
-    ports:
-      - "7681:7681"
-    volumes:
-      # Mount the Docker Socket so 'docker' commands work inside the terminal
-      - /var/run/docker.sock:/var/run/docker.sock
-      # Optional: Persist the root directory so you don't lose files on restart
-      - terminal_data:/root
+version: '3.8'
 
-  # Service 2: The Flask Web Application (UI)
-  web-ui:
-    build: ./app
-    container_name: terminal_dashboard
+services:
+  # 1. THE HEAVY LINUX BACKEND
+  # This container holds the languages, compilers, and the TTYD server.
+  backend:
+    build: ./backend
+    container_name: linux_terminal_backend
+    restart: always
+    privileged: true  # Grants permission to perform system-level tasks
+    ports:
+      - "7681:7681"   # Expose the WebSocket stream
+    volumes:
+      # Mount host Docker socket (allows running 'docker' inside the web terminal)
+      - /var/run/docker.sock:/var/run/docker.sock
+      # Optional: Persist root home directory
+      - term_data:/root
+
+  # 2. THE FLASK WEB UI
+  # This container serves the HTML/CSS interface.
+frontend:
+    build: ./frontend
+    container_name: linux_terminal_ui
     restart: always
     ports:
       - "80:5000"
+    env_file:  # <--- Add this line
+      - .env   # <--- Add this line
     depends_on:
-      - linux-backend
-    environment:
-      - FLASK_ENV=production
+      - backend
 
 volumes:
-  terminal_data:
+  term_data:

@@ -23,8 +23,7 @@
         * { box-sizing: border-box; outline: none; }
 
         body {
-            margin: 0;
-            padding: 0;
+            margin: 0; padding: 0;
             background-color: var(--bg-dark);
             color: var(--text-main);
             font-family: 'Inter', sans-serif;
@@ -38,18 +37,14 @@
             width: var(--sidebar-width);
             background-color: var(--bg-panel);
             border-right: 1px solid var(--border);
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            padding-top: 20px;
-            z-index: 20;
+            display: flex; flex-direction: column; align-items: center;
+            padding-top: 20px; z-index: 20;
         }
 
         .logo {
             width: 32px; height: 32px;
             background: var(--primary);
-            border-radius: 8px;
-            margin-bottom: 40px;
+            border-radius: 8px; margin-bottom: 40px;
             display: grid; place-items: center;
             font-family: 'JetBrains Mono', monospace; font-weight: bold; color: white;
             box-shadow: 0 0 15px var(--primary-dim);
@@ -70,7 +65,7 @@
 
         .nav-bottom { margin-top: auto; margin-bottom: 20px; }
         
-        a { color: inherit; text-decoration: none; display: grid; place-items: center; width: 100%; height: 100%; }
+        a { color: inherit; text-decoration: none; display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; }
 
         /* MAIN CONTENT */
         main { flex-grow: 1; display: flex; flex-direction: column; position: relative; }
@@ -98,6 +93,7 @@
             padding: 4px 10px;
             border-radius: 12px;
             border: 1px solid rgba(34, 197, 94, 0.2);
+            transition: all 0.3s;
         }
 
         .status-dot {
@@ -114,11 +110,11 @@
         }
         .status-badge.offline .status-dot { background-color: var(--danger); box-shadow: none; }
 
-        /* TERMINAL FRAME */
+        /* VIEWPORT & IFRAME */
         .viewport { flex-grow: 1; position: relative; background-color: #000; }
         iframe { width: 100%; height: 100%; border: none; display: block; }
 
-        /* OVERLAY LOADER */
+        /* LOADER OVERLAY */
         #loader {
             position: absolute; top: 0; left: 0; right: 0; bottom: 0;
             background: var(--bg-dark);
@@ -182,7 +178,7 @@
                 <div class="spinner"></div>
                 <div class="loader-text">ESTABLISHING UPLINK...</div>
             </div>
-            <!-- The Magic: We use JS to set the SRC, but we know the port is 7681 -->
+            <!-- Backend URL injected from Flask -->
             <iframe id="term-frame" src="about:blank"></iframe>
         </div>
     </main>
@@ -193,19 +189,15 @@
         const statusBadge = document.getElementById('status-badge');
         const statusText = document.getElementById('status-text');
 
-        // Logic: 
-        // 1. Get current hostname (e.g., localhost or 192.168.x.x)
-        // 2. Attach port 7681 (which we exposed in docker-compose)
-        const protocol = window.location.protocol === 'https:' ? 'https:' : 'http:';
-        const host = window.location.hostname;
-        const port = '{{ backend_port }}'; // Injected by Flask
-        const backendUrl = `${protocol}//${host}:${port}`;
+        // This variable is populated by Flask via render_template
+        const targetUrl = "{{ backend_url }}";
 
         function connect() {
-            console.log(`Initializing connection to ${backendUrl}`);
-            frame.src = backendUrl;
+            console.log(`Connecting to backend: ${targetUrl}`);
+            frame.src = targetUrl;
             
-            // Visual simulated delay for professional feel
+            // Artificial delay to make it look "techy" and professional
+            // In a real WebSocket scenario, TTYD handles the connection logic instantly
             frame.onload = () => {
                 setTimeout(() => {
                     loader.style.opacity = '0';
@@ -245,7 +237,7 @@
             }
         }
 
-        // Init
+        // Initialize connection
         window.addEventListener('DOMContentLoaded', connect);
 
     </script>
