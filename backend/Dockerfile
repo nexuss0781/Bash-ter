@@ -1,12 +1,13 @@
 # Base Image: Ubuntu 22.04 LTS
 FROM ubuntu:22.04
 
-# Prevent interactive prompts (timezone selection, etc.)
+# Prevent interactive prompts
 ENV DEBIAN_FRONTEND=noninteractive
 
 # ---------------------------------------------------------------------
-# 1. Install Core System Tools & Build Essentials
+# 1. Install Core System Tools, Java, Gradle, & Python Alias
 # ---------------------------------------------------------------------
+# Added 'gradle' and 'python-is-python3' (allows typing 'python')
 RUN apt-get update && apt-get install -y \
     bash \
     vim \
@@ -19,24 +20,47 @@ RUN apt-get update && apt-get install -y \
     net-tools \
     iputils-ping \
     unzip \
+    zip \
     sudo \
     build-essential \
     software-properties-common \
     ca-certificates \
     gnupg \
     lsb-release \
-    # Libraries required for Python Scipy/Numpy compilation
+    # Compilers & Math Libs
     gfortran \
     libopenblas-dev \
     liblapack-dev \
     pkg-config \
+    # JAVA & GRADLE
+    openjdk-17-jdk \
+    gradle \
+    # PYTHON COMPATIBILITY (Makes 'python' command work)
+    python-is-python3 \
     && rm -rf /var/lib/apt/lists/*
 
 # ---------------------------------------------------------------------
-# 2. Install Python 3 & Data Science/Web Packages
+# 2. Install Android SDK (Command Line Tools)
+# ---------------------------------------------------------------------
+ENV ANDROID_HOME /opt/android-sdk
+ENV PATH ${PATH}:${ANDROID_HOME}/cmdline-tools/latest/bin:${ANDROID_HOME}/platform-tools
+
+# Download and arrange files specifically how 'sdkmanager' expects them
+# (cmdline-tools/latest/bin/sdkmanager)
+RUN mkdir -p ${ANDROID_HOME}/cmdline-tools \
+    && wget -q https://dl.google.com/android/repository/commandlinetools-linux-10406996_latest.zip -O android_tools.zip \
+    && unzip -q android_tools.zip -d ${ANDROID_HOME}/cmdline-tools \
+    && mv ${ANDROID_HOME}/cmdline-tools/cmdline-tools ${ANDROID_HOME}/cmdline-tools/latest \
+    && rm android_tools.zip
+
+# Accept Licenses and Install Platform Tools
+RUN yes | sdkmanager --licenses \
+    && sdkmanager "platform-tools" "platforms;android-33" "build-tools;33.0.2"
+
+# ---------------------------------------------------------------------
+# 3. Install Python 3 Libraries
 # ---------------------------------------------------------------------
 RUN apt-get update && apt-get install -y \
-    python3 \
     python3-pip \
     python3-venv \
     python3-dev \
@@ -53,11 +77,6 @@ RUN apt-get update && apt-get install -y \
     beautifulsoup4
 
 # ---------------------------------------------------------------------
-# 3. Install Java (OpenJDK 17)
-# ---------------------------------------------------------------------
-RUN apt-get update && apt-get install -y openjdk-17-jdk
-
-# ---------------------------------------------------------------------
 # 4. Install Node.js (Latest LTS - v20.x)
 # ---------------------------------------------------------------------
 RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
@@ -65,7 +84,6 @@ RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
 
 # ---------------------------------------------------------------------
 # 5. Install Docker CLI
-# (Allows usage of 'docker ps' inside the container via socket mounting)
 # ---------------------------------------------------------------------
 RUN mkdir -p /etc/apt/keyrings \
     && curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg \
@@ -90,5 +108,5 @@ WORKDIR /root
 # Expose the WebSocket port
 EXPOSE 7681
 
-# Start TTYD allowing write access (-W) and binding to bash
+# Start TTYD
 CMD ["ttyd", "-W", "bash"]
