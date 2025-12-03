@@ -23,9 +23,15 @@ def home():
 def console():
     """
     Main Dashboard.
-    We pass the BACKEND_URL to the HTML so the iframe knows where to point.
+    We convert the backend URL to a WebSocket URL for xterm.js
     """
-    return render_template('dashboard.html', backend_url=BACKEND_URL)
+    # Default to insecure ws://
+    ws_url = f"ws://{BACKEND_URL.split('://')[-1]}"
+    # If the backend is on https, we use secure wss://
+    if BACKEND_URL.startswith('https://'):
+        ws_url = f"wss://{BACKEND_URL.split('://')[-1]}"
+
+    return render_template('dashboard.html', backend_ws_url=ws_url)
 
 @app.route('/logout')
 def logout():

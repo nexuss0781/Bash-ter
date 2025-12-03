@@ -172,6 +172,13 @@
         }
         @keyframes spin { to { transform: rotate(360deg); } }
         svg { width: 20px; height: 20px; stroke: currentColor; fill: none; stroke-width: 2; }
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.min.css" />
+    <style>
+        .viewport { flex-grow: 1; position: relative; background-color: #000; overflow: hidden; }
+        #terminal { width: 100%; height: 100%; }
+        .xterm .xterm-viewport {
+            overflow-y: hidden !important;
+        }
     </style>
 </head>
 <body>
@@ -192,8 +199,7 @@
         </header>
 
         <div class="viewport">
-            <div id="loader"><div class="spinner"></div></div>
-            <iframe id="term-frame" src="about:blank"></iframe>
+            <div id="terminal"></div>
         </div>
 
         <!-- TERMUX-STYLE VIRTUAL KEYBOARD -->
@@ -221,35 +227,68 @@
         </div>
     </main>
 
+    <script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.min.js"></script>
     <script>
-        const frame = document.getElementById('term-frame');
-        const loader = document.getElementById('loader');
-        const targetUrl = "{{ backend_url }}";
+        const term = new Terminal({
+            cursorBlink: true,
+            fontFamily: '"JetBrains Mono", monospace',
+            fontSize: 14,
+            theme: {
+                background: '#09090b',
+                foreground: '#e4e4e7',
+                cursor: '#3b82f6',
+                selection: 'rgba(59, 130, 246, 0.3)',
+                black: '#18181b',
+                red: '#ef4444',
+                green: '#22c55e',
+                yellow: '#f59e0b',
+                blue: '#3b82f6',
+                magenta: '#d946ef',
+                cyan: '#06b6d4',
+                white: '#e4e4e7',
+                brightBlack: '#71717a',
+                brightRed: '#f87171',
+                brightGreen: '#4ade80',
+                brightYellow: '#facc15',
+                brightBlue: '#60a5fa',
+                brightMagenta: '#e879f9',
+                brightCyan: '#22d3ee',
+                brightWhite: '#f5f5f5'
+            }
+        });
+        const fitAddon = new FitAddon.FitAddon();
+        term.loadAddon(fitAddon);
+        term.open(document.getElementById('terminal'));
+        fitAddon.fit();
+        window.addEventListener('resize', () => fitAddon.fit());
 
-        // === CONNECTION LOGIC ===
-        function connect() {
-            frame.src = targetUrl;
-            frame.onload = () => {
-                setTimeout(() => {
-                    loader.style.opacity = '0';
-                    setTimeout(() => loader.style.display = 'none', 500);
-                    // Attempt to focus iframe so typing works immediately
-                    frame.contentWindow.focus();
-                }, 800);
-            };
-        }
+        const ws = new WebSocket("{{ backend_ws_url }}");
+
+        ws.onopen = function() {
+            term.write('--- CONNECTION ESTABLISHED ---\r\n');
+        };
+
+        ws.onmessage = function(event) {
+            term.write(event.data);
+        };
+
+        ws.onclose = function() {
+            term.write('\r\n--- CONNECTION CLOSED ---');
+        };
+
+        term.onData(function(data) {
+            ws.send(data);
+        });
 
         function reloadTerm() {
-            loader.style.display = 'flex'; loader.style.opacity = '1';
-            frame.src = 'about:blank';
-            setTimeout(connect, 500);
+            window.location.reload();
         }
 
         // === KEYBOARD LOGIC ===
         let isCtrl = false;
         const ctrlBtn = document.getElementById('btn-ctrl');
 
-        // Map button labels to ANSI escape codes or logic
         const keyMap = {
             'ESC': '\x1b',
             'UP': '\x1b[A',
@@ -265,73 +304,37 @@
             '/': '/'
         };
 
-        // Handle clicks on virtual keys
         document.querySelectorAll('.v-key').forEach(key => {
             key.addEventListener('click', (e) => {
                 e.preventDefault();
+                term.focus();
                 const keyLabel = key.getAttribute('data-key');
 
-                // 1. Handle Modifier Toggles
                 if (keyLabel === 'CTRL') {
                     isCtrl = !isCtrl;
                     ctrlBtn.classList.toggle('ctrl-active', isCtrl);
                     return;
                 }
 
-                // 2. Construct Payload
                 let payload = null;
-
                 if (isCtrl) {
-                    // Handle CTRL Combinations
-                    if (keyLabel === 'c' || keyLabel === 'C') payload = '\x03'; // CTRL+C
-                    else if (keyLabel === 'd' || keyLabel === 'D') payload = '\x04'; // CTRL+D
-                    else if (keyLabel === 'z' || keyLabel === 'Z') payload = '\x1a'; // CTRL+Z
-                    // Reset CTRL after use
+                    if (keyLabel.length === 1) {
+                        const charCode = keyLabel.toUpperCase().charCodeAt(0);
+                        if (charCode >= 65 && charCode <= 90) {
+                            payload = String.fromCharCode(charCode - 64);
+                        }
+                    }
                     isCtrl = false;
                     ctrlBtn.classList.remove('ctrl-active');
                 } else {
-                    // Handle Standard Keys
                     payload = keyMap[keyLabel] || keyLabel;
                 }
 
-                // 3. Send to Terminal
-                // Since we are using standard TTYD which runs xterm.js, 
-                // we try to paste the characters.
                 if (payload) {
-                    copyToTerminal(payload);
+                    ws.send(payload);
                 }
-                
-                // Visual Feedback
-                key.classList.add('pressed');
-                setTimeout(() => key.classList.remove('pressed'), 150);
             });
         });
-
-        async function copyToTerminal(text) {
-            // Focus the iframe first
-            frame.contentWindow.focus();
-            
-            // SECURITY NOTE:
-            // Because the frontend (Port 5000) and backend (Port 7681) are on different ports,
-            // we cannot directly inject keystrokes via JS (Same-Origin Policy).
-            // 
-            // However, modern browsers support the Clipboard API.
-            // When you click a button, we write to clipboard, and you can paste (Ctrl+Shift+V) 
-            // inside the terminal, OR if you are on localhost, the focus might allow direct input.
-            
-            try {
-                // We try to use the clipboard as a bridge
-                await navigator.clipboard.writeText(text);
-                
-                // On mobile, just focusing often brings up keyboard.
-                // The user interacts with the terminal directly for typing letters,
-                // the buttons are mostly for special codes.
-            } catch (err) {
-                console.error('Clipboard access failed', err);
-            }
-        }
-
-        window.addEventListener('DOMContentLoaded', connect);
     </script>
 </body>
 </html>
