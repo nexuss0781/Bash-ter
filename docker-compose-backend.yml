@@ -1,0 +1,16 @@
+version: '3.8'
+
+services:
+  backend:
+    build: ./backend
+    container_name: linux_terminal_backend
+    restart: always
+    privileged: true
+    ports:
+      - "7681:7681"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - term_data:/root
+
+volumes:
+  term_data:
