@@ -100,7 +100,7 @@
 
         /* TERMINAL VIEWPORT */
         .viewport { flex-grow: 1; position: relative; background-color: #000; overflow: hidden; }
-        iframe { width: 100%; height: 100%; border: none; display: block; }
+        #terminal { width: 100%; height: 100%; }
 
         /* ============================ */
         /* TERMUX CONTROL BAR STYLES    */
@@ -173,6 +173,10 @@
         @keyframes spin { to { transform: rotate(360deg); } }
         svg { width: 20px; height: 20px; stroke: currentColor; fill: none; stroke-width: 2; }
     </style>
+    <!-- Xterm.js -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.min.css" />
+    <script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.min.js"></script>
 </head>
 <body>
 
@@ -191,9 +195,9 @@
             <div class="status-badge"><div class="status-dot"></div><span>ONLINE</span></div>
         </header>
 
-        <div class="viewport">
+        <div class="viewport" id="terminal-container">
             <div id="loader"><div class="spinner"></div></div>
-            <iframe id="term-frame" src="about:blank"></iframe>
+            <div id="terminal"></div>
         </div>
 
         <!-- TERMUX-STYLE VIRTUAL KEYBOARD -->
@@ -222,26 +226,110 @@
     </main>
 
     <script>
-        const frame = document.getElementById('term-frame');
+        const termContainer = document.getElementById('terminal-container');
         const loader = document.getElementById('loader');
-        const targetUrl = "{{ backend_url }}";
+        const backendUrl = "{{ backend_url }}";
+
+        // === XTERM.JS & WEBSOCKET SETUP ===
+        const term = new Terminal({
+            cursorBlink: true,
+            fontFamily: '"JetBrains Mono", Menlo, "DejaVu Sans Mono", Consolas, "Lucida Console", monospace',
+            fontSize: 14,
+            theme: {
+                background: '#000000',
+                foreground: '#E0E0E0',
+                cursor: '#E0E0E0',
+                selection: 'rgba(255, 255, 255, 0.3)',
+                black: '#000000',
+                red: '#C51E14',
+                green: '#1DC121',
+                yellow: '#C7C329',
+                blue: '#0A2FC4',
+                magenta: '#C83999',
+                cyan: '#20C5C6',
+                white: '#C7C7C7',
+                brightBlack: '#686868',
+                brightRed: '#FD6F6B',
+                brightGreen: '#67F86F',
+                brightYellow: '#FFFA72',
+                brightBlue: '#6A76FB',
+                brightMagenta: '#FD7CFC',
+                brightCyan: '#68FDFE',
+                brightWhite: '#FFFFFF'
+            }
+        });
+
+        // Use the FitAddon to make the terminal automatically fit its container
+        const fitAddon = new FitAddon.FitAddon();
+        term.loadAddon(fitAddon);
+        term.open(document.getElementById('terminal'));
+
+        // Adjust terminal size to fit container
+        function fitTerminal() {
+            try {
+                fitAddon.fit();
+                // Also inform the backend of the size change
+                const dims = fitAddon.proposeDimensions();
+                if (ws && ws.readyState === WebSocket.OPEN && dims) {
+                    ws.send(JSON.stringify({ type: 'resize', cols: dims.cols, rows: dims.rows }));
+                }
+            } catch (e) {
+                console.error("Fit addon error:", e);
+            }
+        }
+
+        var ws; // Declared with var to be accessible on the window object for testing
 
         // === CONNECTION LOGIC ===
         function connect() {
-            frame.src = targetUrl;
-            frame.onload = () => {
-                setTimeout(() => {
-                    loader.style.opacity = '0';
-                    setTimeout(() => loader.style.display = 'none', 500);
-                    // Attempt to focus iframe so typing works immediately
-                    frame.contentWindow.focus();
-                }, 800);
+            // Ensure the URL is clean (no trailing slash) and then append the WebSocket path
+            const cleanUrl = backendUrl.replace(/\/$/, '');
+            const wsUrl = cleanUrl.replace(/^http/, 'ws') + '/ws';
+            console.log(`Connecting to WebSocket at: ${wsUrl}`);
+            ws = new WebSocket(wsUrl);
+
+            ws.onopen = () => {
+                console.log("WebSocket connection established.");
+                ws.send("clear\r");
+                loader.style.opacity = '0';
+                setTimeout(() => loader.style.display = 'none', 500);
+                fitTerminal(); // Fit terminal on connect
+                term.focus();
             };
+
+            ws.onmessage = (event) => {
+                console.log("Received from WebSocket:", event.data);
+                // ttyd sends raw binary data, write it directly to the terminal
+                term.write(event.data);
+            };
+
+            ws.onclose = (event) => {
+                console.log("WebSocket connection closed.", event);
+                term.write('\r\n\r\n--- CONNECTION CLOSED ---');
+                // Optionally, try to reconnect
+            };
+
+            ws.onerror = (error) => {
+                console.error("WebSocket error:", error);
+                term.write('\r\n\r\n--- CONNECTION ERROR ---');
+            };
+
+            // Terminal -> WebSocket
+            term.onData(data => {
+                if (ws.readyState === WebSocket.OPEN) {
+                    ws.send(data);
+                }
+            });
+
+            // Handle resize events
+            window.addEventListener('resize', fitTerminal);
         }
 
         function reloadTerm() {
-            loader.style.display = 'flex'; loader.style.opacity = '1';
-            frame.src = 'about:blank';
+            if (ws) ws.close();
+            term.clear();
+            loader.style.display = 'flex';
+            loader.style.opacity = '1';
             setTimeout(connect, 500);
         }
 
@@ -249,86 +337,52 @@
         let isCtrl = false;
         const ctrlBtn = document.getElementById('btn-ctrl');
 
-        // Map button labels to ANSI escape codes or logic
-        const keyMap = {
-            'ESC': '\x1b',
-            'UP': '\x1b[A',
-            'DOWN': '\x1b[B',
-            'RIGHT': '\x1b[C',
-            'LEFT': '\x1b[D',
-            'HOME': '\x1b[H',
-            'END': '\x1b[F',
-            'PGUP': '\x1b[5~',
-            'PGDN': '\x1b[6~',
-            'TAB': '\t',
-            '-': '-',
-            '/': '/'
-        };
-
-        // Handle clicks on virtual keys
         document.querySelectorAll('.v-key').forEach(key => {
-            key.addEventListener('click', (e) => {
+            key.addEventListener('mousedown', (e) => {
                 e.preventDefault();
-                const keyLabel = key.getAttribute('data-key');
-
-                // 1. Handle Modifier Toggles
-                if (keyLabel === 'CTRL') {
-                    isCtrl = !isCtrl;
-                    ctrlBtn.classList.toggle('ctrl-active', isCtrl);
-                    return;
-                }
-
-                // 2. Construct Payload
-                let payload = null;
-
-                if (isCtrl) {
-                    // Handle CTRL Combinations
-                    if (keyLabel === 'c' || keyLabel === 'C') payload = '\x03'; // CTRL+C
-                    else if (keyLabel === 'd' || keyLabel === 'D') payload = '\x04'; // CTRL+D
-                    else if (keyLabel === 'z' || keyLabel === 'Z') payload = '\x1a'; // CTRL+Z
-                    // Reset CTRL after use
-                    isCtrl = false;
-                    ctrlBtn.classList.remove('ctrl-active');
-                } else {
-                    // Handle Standard Keys
-                    payload = keyMap[keyLabel] || keyLabel;
-                }
-
-                // 3. Send to Terminal
-                // Since we are using standard TTYD which runs xterm.js, 
-                // we try to paste the characters.
-                if (payload) {
-                    copyToTerminal(payload);
-                }
-                
-                // Visual Feedback
-                key.classList.add('pressed');
-                setTimeout(() => key.classList.remove('pressed'), 150);
+                handleKeyPress(key);
             });
+            key.addEventListener('touchstart', (e) => {
+                e.preventDefault();
+                handleKeyPress(key);
+            }, { passive: false });
         });
 
-        async function copyToTerminal(text) {
-            // Focus the iframe first
-            frame.contentWindow.focus();
-            
-            // SECURITY NOTE:
-            // Because the frontend (Port 5000) and backend (Port 7681) are on different ports,
-            // we cannot directly inject keystrokes via JS (Same-Origin Policy).
-            // 
-            // However, modern browsers support the Clipboard API.
-            // When you click a button, we write to clipboard, and you can paste (Ctrl+Shift+V) 
-            // inside the terminal, OR if you are on localhost, the focus might allow direct input.
-            
-            try {
-                // We try to use the clipboard as a bridge
-                await navigator.clipboard.writeText(text);
-                
-                // On mobile, just focusing often brings up keyboard.
-                // The user interacts with the terminal directly for typing letters,
-                // the buttons are mostly for special codes.
-            } catch (err) {
-                console.error('Clipboard access failed', err);
+        function handleKeyPress(key) {
+            const keyLabel = key.getAttribute('data-key');
+
+            if (keyLabel === 'CTRL') {
+                isCtrl = !isCtrl;
+                ctrlBtn.classList.toggle('ctrl-active', isCtrl);
+                return;
             }
+
+            let command = '';
+            const keyMap = {
+                'ESC': '\x1b', 'UP': '\x1b[A', 'DOWN': '\x1b[B', 'RIGHT': '\x1b[C', 'LEFT': '\x1b[D',
+                'HOME': '\x1b[H', 'END': '\x1b[F', 'PGUP': '\x1b[5~', 'PGDN': '\x1b[6~',
+                'TAB': '\t', '/': '/', '-': '-',
+            };
+
+            if (isCtrl) {
+                const combo = keyLabel.toUpperCase();
+                if (combo >= 'A' && combo <= 'Z') {
+                     // Simple Ctrl+<char> mapping
+                    command = String.fromCharCode(combo.charCodeAt(0) - 'A'.charCodeAt(0) + 1);
+                }
+                isCtrl = false; // Reset Ctrl after use
+                ctrlBtn.classList.remove('ctrl-active');
+            } else {
+                command = keyMap[keyLabel] || keyLabel;
+            }
+
+            if (command && ws.readyState === WebSocket.OPEN) {
+                ws.send(command);
+                term.focus();
+            }
+             // Visual Feedback
+             key.classList.add('pressed');
+             setTimeout(() => key.classList.remove('pressed'), 200);
         }
 
         window.addEventListener('DOMContentLoaded', connect);
